@@ -332,7 +332,7 @@ let handler = async (m, { conn }) => {
           interactiveMessage: {
             header,
             body: { text: menuText },
-            footer: { text: 'Hecho por *Ado* :D' },
+            footer: { text: 'Hecho por 𓆩‌۫᷼ ִֶָღ݉͢𝓢𝓪𝓻𝓪𝓱𓆪‌‹࣭݊𓂃ⷪ ִֶָ ᷫ‹ ⷭ.࣭𓆩‌۫᷼Ⴕ۫͜𓆪‌' },
             contextInfo,
             nativeFlowMessage: {
               buttons: [
@@ -340,7 +340,7 @@ let handler = async (m, { conn }) => {
                   name: 'cta_url',
                   buttonParamsJson: JSON.stringify({
                     display_text: '✿ 𝗛𝗮𝘇𝘁𝗲 𝗦𝘂𝗯𝗕𝗼𝘁',
-                    url: 'https://meow.hostrta.win'
+                    url: '185.16.39.160:3170'
                   })
                 },
                 {
