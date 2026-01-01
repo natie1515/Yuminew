@@ -5,8 +5,8 @@ const config = {
   prefijo: '.',
 
   owner: [
+    '156981591593126@lid',
     '559296077349@s.whatsapp.net',
-    '526241922235@s.whatsapp.net',
     '51921826291@s.whatsapp.net'
   ],
 
