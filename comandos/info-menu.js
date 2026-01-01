@@ -340,7 +340,7 @@ let handler = async (m, { conn }) => {
                   name: 'cta_url',
                   buttonParamsJson: JSON.stringify({
                     display_text: '✿ 𝗛𝗮𝘇𝘁𝗲 𝗦𝘂𝗯𝗕𝗼𝘁',
-                    url: 'http://yumibot.duckdns.org:3170'
+                    url: 'yukibotnew.sytes.net:3170'
                   })
                 },
                 {
