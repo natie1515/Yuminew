@@ -7,7 +7,6 @@ import apiRoutes from './routes/apiRoutes.js'
 import JsonFileStore from './lib/jsonSessionStore.js'
 
 const app = express()
-
 const pub = path.resolve('./webpanel/public')
 
 app.disable('x-powered-by')
@@ -17,7 +16,7 @@ app.use(express.urlencoded({ extended: true }))
 app.use(
   session({
     name: 'sb_sess',
-    secret: process.env.WEB_SESSION_SECRET || 'sb_secret_change_me',
+    secret: process.env.WEB_SESSION_SECRET || 'sb_secret_change_me', // Reemplaza esta clave en producción!
     resave: false,
     saveUninitialized: false,
     store: new JsonFileStore({
@@ -28,24 +27,27 @@ app.use(
     cookie: {
       httpOnly: true,
       sameSite: 'lax',
-      maxAge: Number(process.env.WEB_COOKIE_MAX_AGE_MS || 1000 * 60 * 60 * 24 * 365)
+      maxAge: Number(process.env.WEB_COOKIE_MAX_AGE_MS || 1000 * 60 * 60 * 24 * 365),
+      secure: process.env.NODE_ENV === 'production' // Habilita HTTPS en producción
     }
   })
 )
 
-// Static assets
+// Assets estáticos
 app.use('/assets', express.static(path.join(pub, 'assets')))
 
+// Rutas
 app.use('/', authRoutes)
-
 app.use('/api', apiRoutes)
 
+// 404
 app.use((req, res) => {
-  res.status(404).send('404')
+  res.status(404).send('404 - Página no encontrada')
 })
 
+// Inicio en puerto 8080 (o variable WEB_PORT)
 function startWebPanel() {
-  const port = Number(process.env.WEB_PORT || 3170)
+  const port = Number(process.env.WEB_PORT || 8080)
   const host = process.env.WEB_HOST || '0.0.0.0'
 
   app.listen(port, host, () => {
