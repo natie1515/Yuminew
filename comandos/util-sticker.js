@@ -37,103 +37,65 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
   const imageMessage = m?.message?.imageMessage || quotedMsg?.imageMessage || null
   const videoMessage = m?.message?.videoMessage || quotedMsg?.videoMessage || null
 
-  const isImage = !!imageMessage
-  const isVideo = !!videoMessage
-
-  if (!isImage && !isVideo) {
+  if (!imageMessage && !videoMessage) {
     return await conn.sendMessage(
       from,
-      {
-        text:
-          '「✦」Responde a una *imagen* o *video* para crear el sticker.\n' +
-          `> ✐ Ejemplo » *${usedPrefix + command} crop*\n` +
-          `> ✐ Lista » *${usedPrefix + command} list*`
-      },
+      { text: `Responde a una imagen o video\nEj: ${usedPrefix + command}` },
       { quoted: m }
     )
   }
 
-  const msg = isImage ? imageMessage : videoMessage
-  const dlType = isImage ? 'image' : 'video'
+  const msg = imageMessage || videoMessage
+  const dlType = imageMessage ? 'image' : 'video'
 
   const stream = await downloadContentFromMessage(msg, dlType)
-
   let buffer = Buffer.from([])
   for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk])
 
   const ts = Date.now()
-  const input = `./temp_${ts}.${isImage ? 'jpg' : 'mp4'}`
+  const input = `./temp_${ts}.${imageMessage ? 'jpg' : 'mp4'}`
   const output = `./temp_${ts}.webp`
 
   await fs.promises.writeFile(input, buffer)
 
-  // ✅ DEFAULT: CROP (NO REDONDO)
   const style = opt || 'crop'
-  if (style && style !== '' && !styles[style]) {
-    await conn.sendMessage(from, { text: listText }, { quoted: m })
-    if (fs.existsSync(input)) await fs.promises.unlink(input)
-    return
-  }
-
-  const baseContain =
-    'fps=15,' +
-    'scale=512:512:force_original_aspect_ratio=decrease,' +
-    'pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0'
 
   const baseCoverCrop =
-    'fps=15,' +
-    'scale=512:512:force_original_aspect_ratio=increase,' +
-    'crop=512:512'
+    'fps=15,scale=512:512:force_original_aspect_ratio=increase,crop=512:512'
 
-  const geqCircle = "geq=lum='p(X,Y)':a='if(lte(hypot(X-256,Y-256),256),255,0)'"
+  const geqCircle =
+    "geq=lum='p(X,Y)':a='if(lte(hypot(X-256,Y-256),256),255,0)'"
 
   const vf =
-    style === 'crop' ? baseCoverCrop :
-    style === 'circle' ? `${baseCoverCrop},format=rgba,${geqCircle}` :
-    style === 'bw' ? `${baseContain},hue=s=0` :
-    style === 'invert' ? `${baseContain},negate` :
-    style === 'blur' ? `${baseContain},gblur=sigma=6` :
-    style === 'pixel' ? `${baseContain},scale=128:128:flags=neighbor,scale=512:512:flags=neighbor` :
-    style === 'sepia' ? `${baseContain},colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131` :
-    style === 'neon' ? `${baseContain},edgedetect=low=0.08:high=0.2` :
-    baseCoverCrop
+    style === 'circle'
+      ? `${baseCoverCrop},format=rgba,${geqCircle}`
+      : baseCoverCrop
 
-  const ffmpegCmd = isVideo
-    ? `ffmpeg -y -i "${input}" -t 8 -an -vf "${vf}" -loop 0 -fps_mode passthrough "${output}"`
-    : `ffmpeg -y -i "${input}" -an -vf "${vf}" -loop 0 -fps_mode passthrough "${output}"`
+  const ffmpegCmd = imageMessage
+    ? `ffmpeg -y -i "${input}" -vf "${vf}" "${output}"`
+    : `ffmpeg -y -i "${input}" -t 8 -vf "${vf}" "${output}"`
 
-  // ✅ METADATA DEL STICKER (BONITO)
-  const packname = globalThis.nombrebot || 'Sticker Bot'
+  const packname = globalThis.nombrebot || 'YumiBot'
   const author = packname
 
   try {
     await execAsync(ffmpegCmd)
-    const sticker = await fs.promises.readFile(output)
+
+    // ✅ FORMA CORRECTA (METADATA SÍ FUNCIONA)
     await conn.sendMessage(
       from,
       {
-        sticker,
+        sticker: { url: output },
         packname,
         author
       },
       { quoted: m }
     )
   } catch (e) {
-    const err = (e?.stderr || e?.stdout || e?.message || String(e) || '').toString()
-    await conn.sendMessage(
-      from,
-      {
-        text:
-          '「✦」Error creando el sticker.\n\n' +
-          `> ✐ Estilo: *${style}*\n` +
-          `> ✐ ffmpeg: \`${ffmpegCmd}\`\n\n` +
-          `> ✐ Error:\n\`\`\`\n${err.slice(0, 3500)}\n\`\`\``
-      },
-      { quoted: m }
-    )
+    await conn.sendMessage(from, { text: 'Error creando sticker' }, { quoted: m })
   } finally {
-    if (fs.existsSync(input)) await fs.promises.unlink(input)
-    if (fs.existsSync(output)) await fs.promises.unlink(output)
+    if (fs.existsSync(input)) fs.unlinkSync(input)
+    if (fs.existsSync(output)) fs.unlinkSync(output)
   }
 }
 
