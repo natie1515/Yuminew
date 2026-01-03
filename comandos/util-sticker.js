@@ -12,8 +12,8 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
   const opt = (args?.[0] || '').toLowerCase()
 
   const styles = {
-    circle: 'Círculo (recorte redondo)',
     crop: 'Recorte centrado 512x512',
+    circle: 'Círculo (recorte redondo)',
     bw: 'Blanco y negro',
     invert: 'Invertir colores',
     blur: 'Desenfoque',
@@ -46,7 +46,7 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
       {
         text:
           '「✦」Responde a una *imagen* o *video* para crear el sticker.\n' +
-          `> ✐ Ejemplo » *${usedPrefix + command} circle*\n` +
+          `> ✐ Ejemplo » *${usedPrefix + command} crop*\n` +
           `> ✐ Lista » *${usedPrefix + command} list*`
       },
       { quoted: m }
@@ -67,7 +67,8 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
 
   await fs.promises.writeFile(input, buffer)
 
-  const style = opt || 'circle'
+  // ✅ DEFAULT: CROP (NO REDONDO)
+  const style = opt || 'crop'
   if (style && style !== '' && !styles[style]) {
     await conn.sendMessage(from, { text: listText }, { quoted: m })
     if (fs.existsSync(input)) await fs.promises.unlink(input)
@@ -87,24 +88,36 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
   const geqCircle = "geq=lum='p(X,Y)':a='if(lte(hypot(X-256,Y-256),256),255,0)'"
 
   const vf =
-    style === 'circle' ? `${baseCoverCrop},format=rgba,${geqCircle}` :
     style === 'crop' ? baseCoverCrop :
+    style === 'circle' ? `${baseCoverCrop},format=rgba,${geqCircle}` :
     style === 'bw' ? `${baseContain},hue=s=0` :
     style === 'invert' ? `${baseContain},negate` :
     style === 'blur' ? `${baseContain},gblur=sigma=6` :
     style === 'pixel' ? `${baseContain},scale=128:128:flags=neighbor,scale=512:512:flags=neighbor` :
     style === 'sepia' ? `${baseContain},colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131` :
     style === 'neon' ? `${baseContain},edgedetect=low=0.08:high=0.2` :
-    `${baseCoverCrop},format=rgba,${geqCircle}`
+    baseCoverCrop
 
   const ffmpegCmd = isVideo
     ? `ffmpeg -y -i "${input}" -t 8 -an -vf "${vf}" -loop 0 -fps_mode passthrough "${output}"`
     : `ffmpeg -y -i "${input}" -an -vf "${vf}" -loop 0 -fps_mode passthrough "${output}"`
 
+  // ✅ METADATA DEL STICKER (BONITO)
+  const packname = globalThis.nombrebot || 'Sticker Bot'
+  const author = packname
+
   try {
     await execAsync(ffmpegCmd)
     const sticker = await fs.promises.readFile(output)
-    await conn.sendMessage(from, { sticker }, { quoted: m })
+    await conn.sendMessage(
+      from,
+      {
+        sticker,
+        packname,
+        author
+      },
+      { quoted: m }
+    )
   } catch (e) {
     const err = (e?.stderr || e?.stdout || e?.message || String(e) || '').toString()
     await conn.sendMessage(
