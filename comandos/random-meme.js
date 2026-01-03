@@ -1,24 +1,17 @@
 import axios from 'axios'
 const {
   proto,
-  generateWAMessageFromContent,
-  prepareWAMessageMedia
+  generateWAMessageFromContent
 } = (await import("@whiskeysockets/baileys")).default
 
 const handler = async (m, { conn }) => {
   try {
     const res = await axios.get('https://g-mini-ia.vercel.app/api/meme')
-    const memeUrl = res.data.url
+    const memeUrl = res.data?.url
 
     if (!memeUrl) {
       return conn.sendMessage(m.chat, { text: '🌾 No se pudo obtener el meme.' }, { quoted: m })
     }
-
-    const mediaMessage = await prepareWAMessageMedia(
-      { image: { url: memeUrl } },
-      { upload: conn.waUploadToServer }
-    )
-
 
     const fkontak = {
       key: {
@@ -29,86 +22,70 @@ const handler = async (m, { conn }) => {
       },
       message: {
         contactMessage: {
-          vcard: `BEGIN:VCARD\nVERSION:3.0\nN:Sy;Bot;;;\nFN:${m.pushName}\nitem1.TEL;waid=${m.sender.split('@')[0]}:${m.sender.split('@')[0]}\nitem1.X-ABLabel:Ponsel\nEND:VCARD`
+          vcard: `BEGIN:VCARD
+VERSION:3.0
+N:Bot;Meme;;;
+FN:${m.pushName}
+TEL;waid=${m.sender.split('@')[0]}:${m.sender.split('@')[0]}
+END:VCARD`
         }
-      },
-      participant: "0@s.whatsapp.net"
+      }
     }
 
-    const interactiveMsg = generateWAMessageFromContent(
+    const msg = generateWAMessageFromContent(
       m.chat,
       {
-        viewOnceMessage: {
-          message: {
-            messageContextInfo: {
-              deviceListMetadata: {},
-              deviceListMetadataVersion: 2
-            },
-            interactiveMessage: {
-              body: {
-                text: "> ✿ Aquí tienes tu *meme*"
+        interactiveMessage: {
+          header: {
+            title: "➭ Meme Random",
+            hasMediaAttachment: true,
+            image: { url: memeUrl }
+          },
+          body: {
+            text: "> ✿ Aquí tienes tu *meme*"
+          },
+          footer: {
+            text: "☃️"
+          },
+          nativeFlowMessage: {
+            buttons: [
+              {
+                name: "cta_url",
+                buttonParamsJson: JSON.stringify({
+                  display_text: "✐ Abrir Imagen",
+                  url: memeUrl
+                })
               },
-              footer: {
-                text: "☃️"
+              {
+                name: "cta_copy",
+                buttonParamsJson: JSON.stringify({
+                  display_text: "⊹ Copiar Enlace",
+                  copy_code: memeUrl
+                })
               },
-              header: {
-                title: "➭ Meme Random",
-                subtitle: "",
-                hasMediaAttachment: true,
-                imageMessage: mediaMessage.imageMessage 
-              },
-              nativeFlowMessage: {
-                buttons: [
-                  {
-                    name: "cta_url",
-                    buttonParamsJson: JSON.stringify({
-                      display_text: "✐ Abrir Imagen",
-                      url: memeUrl,
-                      merchant_url: memeUrl
-                    })
-                  },
-                  {
-                    name: "cta_copy",
-                    buttonParamsJson: JSON.stringify({
-                      display_text: "⊹ Copiar Enlace",
-                      id: "copy_meme",
-                      copy_code: memeUrl
-                    })
-                  },
-                  {
-                    name: "quick_reply",
-                    buttonParamsJson: JSON.stringify({
-                      display_text: "Otro",
-                      id: ".meme"
-                    })
-                  }
-                ]
-              },
-              contextInfo: {
-                mentionedJid: [m.sender],
-                forwardingScore: 999,
-                isForwarded: true,
-                externalAdReply: {
-                  title: "🌾 Zona de Diversión",
-                  body: "😹 Disfruta de los mejores memes",
-                  thumbnailUrl: memeUrl,
-                  sourceUrl: memeUrl,
-                  mediaType: 1,
-                  renderLargerThumbnail: true 
-                }
+              {
+                name: "quick_reply",
+                buttonParamsJson: JSON.stringify({
+                  display_text: "Otro",
+                  id: ".meme"
+                })
               }
-            }
+            ]
           }
         }
       },
-      { quoted: fkontak } 
+      { quoted: fkontak }
     )
 
-    await conn.relayMessage(m.chat, interactiveMsg.message, {})
+    await conn.relayMessage(m.chat, msg.message, {})
 
   } catch (e) {
     console.error(e)
-    await conn.sendMessage(m.chat, { text: ' Hubo un error técnico al generar el mensaje.' }, { quoted: m })
+    await conn.sendMessage(
+      m.chat,
+      { text: '❌ Error al generar el meme.' },
+      { quoted: m }
+    )
   }
 }
 
