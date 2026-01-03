@@ -340,7 +340,7 @@ let handler = async (m, { conn }) => {
                   name: 'cta_url',
                   buttonParamsJson: JSON.stringify({
                     display_text: '✿ 𝗛𝗮𝘇𝘁𝗲 𝗦𝘂𝗯𝗕𝗼𝘁',
-                    url: 'yukibotnew.sytes.net:3170'
+                    url: 'http://172.96.172.213:25407/login'
                   })
                 },
                 {
