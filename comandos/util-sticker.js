@@ -2,6 +2,7 @@ import { exec } from 'child_process'
 import fs from 'fs'
 import util from 'util'
 import { downloadContentFromMessage } from '@whiskeysockets/baileys'
+import { Sticker } from 'wa-sticker-formatter' // ← AGREGADO
 
 const execAsync = util.promisify(exec)
 
@@ -40,20 +41,9 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
   const isImage = !!imageMessage
   const isVideo = !!videoMessage
 
-  if (!isImage && !isVideo) {
-    return await conn.sendMessage(
-      from,
-      {
-        text:
-          '「✦」Responde a una *imagen* o *video* para crear el sticker.\n' +
-          `> ✐ Ejemplo » *${usedPrefix + command} crop*\n` +
-          `> ✐ Lista » *${usedPrefix + command} list*`
-      },
-      { quoted: m }
-    )
-  }
+  if (!isImage && !isVideo) return
 
-  // ⏳ RELOJ DE ARENA (CREANDO)
+  // ⏳ AGREGADO: reloj mientras crea
   await conn.sendMessage(from, {
     react: { text: '⏳', key: m.key }
   })
@@ -62,7 +52,6 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
   const dlType = isImage ? 'image' : 'video'
 
   const stream = await downloadContentFromMessage(msg, dlType)
-
   let buffer = Buffer.from([])
   for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk])
 
@@ -73,10 +62,6 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
   await fs.promises.writeFile(input, buffer)
 
   const style = opt || 'crop'
-  if (style && style !== '' && !styles[style]) {
-    if (fs.existsSync(input)) await fs.promises.unlink(input)
-    return
-  }
 
   const baseContain =
     'fps=15,' +
@@ -107,15 +92,28 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
 
   try {
     await execAsync(ffmpegCmd)
-    const sticker = await fs.promises.readFile(output)
+
+    // 🏷️ AGREGADO: metadata (bot, creador, fecha)
+    const nombreBot = globalThis.nombrebot || 'Sticker Bot'
+    const creador = m.pushName || 'Usuario'
+    const fecha = new Date().toLocaleDateString('es-ES')
+
+    const sticker = new Sticker(output, {
+      pack: nombreBot,
+      author: `${creador} • ${fecha}`,
+      type: 'full',
+      quality: 100
+    })
+
+    const stickerBuffer = await sticker.toBuffer()
 
     await conn.sendMessage(
       from,
-      { sticker },
+      { sticker: stickerBuffer },
       { quoted: m }
     )
 
-    // ✔️ FLECHA VERDE (LISTO)
+    // ✔️ AGREGADO: flecha verde al terminar
     await conn.sendMessage(from, {
       react: { text: '✔️', key: m.key }
     })
