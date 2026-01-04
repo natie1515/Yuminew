@@ -13,7 +13,8 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
   const opt = (args?.[0] || '').toLowerCase()
 
   const styles = {
-    full: 'Imagen completa (sin recorte)',
+    circle: 'Círculo (recorte redondo)',
+    crop: 'Recorte centrado 512x512',
     bw: 'Blanco y negro',
     invert: 'Invertir colores',
     blur: 'Desenfoque',
@@ -24,7 +25,8 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
 
   const listText =
     `「✦」𝗟𝗶𝘀𝘁𝗮 𝗱𝗲 𝗲𝘀𝘁𝗶𝗹𝗼𝘀 (${usedPrefix + command} <estilo>)\n\n` +
-    Object.keys(styles).map(k => `• ${usedPrefix + command} ${k} — ${styles[k]}`).join('\n')
+    Object.keys(styles).map(k => `• ${usedPrefix + command} ${k} — ${styles[k]}`).join('\n') +
+    `\n\n• ${usedPrefix + command} list`
 
   if (opt === 'list') {
     return await conn.sendMessage(from, { text: listText }, { quoted: m })
@@ -65,24 +67,30 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
 
   await fs.promises.writeFile(input, buffer)
 
-  // 🔥 BASE REAL: NO RECORTA, MANTIENE TODO
-  const baseFull =
+  // 🔧 SOLO AJUSTE NECESARIO: NO RECORTA + STICKER VÁLIDO
+  const baseContain =
     'fps=15,' +
     'scale=512:512:force_original_aspect_ratio=decrease,' +
-    'pad=512:512:(ow-iw)/2:(oh-ih)/2:color=transparent'
+    'pad=512:512:(ow-iw)/2:(oh-ih)/2:color=transparent,' +
+    'format=rgba' // ← AÑADIDO
+
+  const geqCircle = "geq=lum='p(X,Y)':a='if(lte(hypot(X-256,Y-256),256),255,0)'"
 
   const vf =
-    opt === 'bw' ? `${baseFull},hue=s=0` :
-    opt === 'invert' ? `${baseFull},negate` :
-    opt === 'blur' ? `${baseFull},gblur=sigma=6` :
-    opt === 'pixel' ? `${baseFull},scale=128:128:flags=neighbor,scale=512:512:flags=neighbor` :
-    opt === 'sepia' ? `${baseFull},colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131` :
-    opt === 'neon' ? `${baseFull},edgedetect=low=0.08:high=0.2` :
-    baseFull
+    opt === 'crop' ? baseContain :
+    opt === 'circle' ? `${baseContain},${geqCircle}` :
+    opt === 'bw' ? `${baseContain},hue=s=0` :
+    opt === 'invert' ? `${baseContain},negate` :
+    opt === 'blur' ? `${baseContain},gblur=sigma=6` :
+    opt === 'pixel' ? `${baseContain},scale=128:128:flags=neighbor,scale=512:512:flags=neighbor` :
+    opt === 'sepia' ? `${baseContain},colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131` :
+    opt === 'neon' ? `${baseContain},edgedetect=low=0.08:high=0.2` :
+    baseContain
 
+  // 🔧 SOLO AJUSTE NECESARIO AQUÍ
   const ffmpegCmd = isVideo
-    ? `ffmpeg -y -i "${input}" -t 8 -an -vf "${vf}" -loop 0 "${output}"`
-    : `ffmpeg -y -i "${input}" -an -vf "${vf}" -loop 0 "${output}"`
+    ? `ffmpeg -y -i "${input}" -t 8 -an -vf "${vf}" -loop 0 -pix_fmt yuva420p "${output}"`
+    : `ffmpeg -y -i "${input}" -an -vf "${vf}" -loop 0 -pix_fmt yuva420p "${output}"`
 
   try {
     await execAsync(ffmpegCmd)
