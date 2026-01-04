@@ -67,12 +67,12 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
 
   await fs.promises.writeFile(input, buffer)
 
-  // 🔧 SOLO AJUSTE NECESARIO: NO RECORTA + STICKER VÁLIDO
+  // ✅ ÚNICO CAMBIO AQUÍ (transparent → white@0.0)
   const baseContain =
     'fps=15,' +
     'scale=512:512:force_original_aspect_ratio=decrease,' +
-    'pad=512:512:(ow-iw)/2:(oh-ih)/2:color=transparent,' +
-    'format=rgba' // ← AÑADIDO
+    'pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0,' +
+    'format=rgba'
 
   const geqCircle = "geq=lum='p(X,Y)':a='if(lte(hypot(X-256,Y-256),256),255,0)'"
 
@@ -87,7 +87,6 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
     opt === 'neon' ? `${baseContain},edgedetect=low=0.08:high=0.2` :
     baseContain
 
-  // 🔧 SOLO AJUSTE NECESARIO AQUÍ
   const ffmpegCmd = isVideo
     ? `ffmpeg -y -i "${input}" -t 8 -an -vf "${vf}" -loop 0 -pix_fmt yuva420p "${output}"`
     : `ffmpeg -y -i "${input}" -an -vf "${vf}" -loop 0 -pix_fmt yuva420p "${output}"`
