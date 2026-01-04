@@ -2,7 +2,7 @@ import { exec } from 'child_process'
 import fs from 'fs'
 import util from 'util'
 import { downloadContentFromMessage } from '@whiskeysockets/baileys'
-import { Sticker } from 'wa-sticker-formatter' // ← AGREGADO
+import { Sticker } from 'wa-sticker-formatter'
 
 const execAsync = util.promisify(exec)
 
@@ -13,8 +13,7 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
   const opt = (args?.[0] || '').toLowerCase()
 
   const styles = {
-    circle: 'Círculo (recorte redondo)',
-    crop: 'Recorte centrado 512x512',
+    full: 'Imagen completa (sin recorte)',
     bw: 'Blanco y negro',
     invert: 'Invertir colores',
     blur: 'Desenfoque',
@@ -25,25 +24,30 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
 
   const listText =
     `「✦」𝗟𝗶𝘀𝘁𝗮 𝗱𝗲 𝗲𝘀𝘁𝗶𝗹𝗼𝘀 (${usedPrefix + command} <estilo>)\n\n` +
-    Object.keys(styles).map(k => `• ${usedPrefix + command} ${k} — ${styles[k]}`).join('\n') +
-    `\n\n• ${usedPrefix + command} list`
+    Object.keys(styles).map(k => `• ${usedPrefix + command} ${k} — ${styles[k]}`).join('\n')
 
   if (opt === 'list') {
     return await conn.sendMessage(from, { text: listText }, { quoted: m })
   }
 
   const ctx = m?.message?.extendedTextMessage?.contextInfo
-  const quotedMsg = ctx?.quotedMessage?.message || ctx?.quotedMessage || null
+  const quotedMsg = ctx?.quotedMessage || null
 
-  const imageMessage = m?.message?.imageMessage || quotedMsg?.imageMessage || null
-  const videoMessage = m?.message?.videoMessage || quotedMsg?.videoMessage || null
+  const imageMessage =
+    m?.message?.imageMessage ||
+    quotedMsg?.imageMessage ||
+    null
+
+  const videoMessage =
+    m?.message?.videoMessage ||
+    quotedMsg?.videoMessage ||
+    null
 
   const isImage = !!imageMessage
   const isVideo = !!videoMessage
 
   if (!isImage && !isVideo) return
 
-  // ⏳ AGREGADO: reloj mientras crea
   await conn.sendMessage(from, {
     react: { text: '⏳', key: m.key }
   })
@@ -61,39 +65,28 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
 
   await fs.promises.writeFile(input, buffer)
 
-  const style = opt || 'crop'
-
-  const baseContain =
+  // 🔥 BASE REAL: NO RECORTA, MANTIENE TODO
+  const baseFull =
     'fps=15,' +
     'scale=512:512:force_original_aspect_ratio=decrease,' +
-    'pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0'
-
-  const baseCoverCrop =
-    'fps=15,' +
-    'scale=512:512:force_original_aspect_ratio=increase,' +
-    'crop=512:512'
-
-  const geqCircle = "geq=lum='p(X,Y)':a='if(lte(hypot(X-256,Y-256),256),255,0)'"
+    'pad=512:512:(ow-iw)/2:(oh-ih)/2:color=transparent'
 
   const vf =
-    style === 'crop' ? baseCoverCrop :
-    style === 'circle' ? `${baseCoverCrop},format=rgba,${geqCircle}` :
-    style === 'bw' ? `${baseContain},hue=s=0` :
-    style === 'invert' ? `${baseContain},negate` :
-    style === 'blur' ? `${baseContain},gblur=sigma=6` :
-    style === 'pixel' ? `${baseContain},scale=128:128:flags=neighbor,scale=512:512:flags=neighbor` :
-    style === 'sepia' ? `${baseContain},colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131` :
-    style === 'neon' ? `${baseContain},edgedetect=low=0.08:high=0.2` :
-    baseCoverCrop
+    opt === 'bw' ? `${baseFull},hue=s=0` :
+    opt === 'invert' ? `${baseFull},negate` :
+    opt === 'blur' ? `${baseFull},gblur=sigma=6` :
+    opt === 'pixel' ? `${baseFull},scale=128:128:flags=neighbor,scale=512:512:flags=neighbor` :
+    opt === 'sepia' ? `${baseFull},colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131` :
+    opt === 'neon' ? `${baseFull},edgedetect=low=0.08:high=0.2` :
+    baseFull
 
   const ffmpegCmd = isVideo
-    ? `ffmpeg -y -i "${input}" -t 8 -an -vf "${vf}" -loop 0 -fps_mode passthrough "${output}"`
-    : `ffmpeg -y -i "${input}" -an -vf "${vf}" -loop 0 -fps_mode passthrough "${output}"`
+    ? `ffmpeg -y -i "${input}" -t 8 -an -vf "${vf}" -loop 0 "${output}"`
+    : `ffmpeg -y -i "${input}" -an -vf "${vf}" -loop 0 "${output}"`
 
   try {
     await execAsync(ffmpegCmd)
 
-    // 🏷️ AGREGADO: metadata (bot, creador, fecha)
     const nombreBot = globalThis.nombrebot || 'Sticker Bot'
     const creador = m.pushName || 'Usuario'
     const fecha = new Date().toLocaleDateString('es-ES')
@@ -107,13 +100,8 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
 
     const stickerBuffer = await sticker.toBuffer()
 
-    await conn.sendMessage(
-      from,
-      { sticker: stickerBuffer },
-      { quoted: m }
-    )
+    await conn.sendMessage(from, { sticker: stickerBuffer }, { quoted: m })
 
-    // ✔️ AGREGADO: flecha verde al terminar
     await conn.sendMessage(from, {
       react: { text: '✔️', key: m.key }
     })
@@ -131,5 +119,6 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
 handler.help = ['sticker']
 handler.tags = ['sticker']
 handler.command = ['sticker', 's']
+handler.register = true
 
 export default handler
