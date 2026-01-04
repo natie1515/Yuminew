@@ -28,6 +28,17 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
     Object.keys(styles).map(k => `• ${usedPrefix + command} ${k} — ${styles[k]}`).join('\n') +
     `\n\n• ${usedPrefix + command} list`
 
+  // ✅ TEXTO DE AYUDA RESTAURADO
+  if (!opt && !m?.message?.imageMessage && !m?.message?.videoMessage &&
+      !m?.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
+    return conn.sendMessage(from, {
+      text:
+        '「✦」Responde a una *imagen* o *video* para crear el sticker.\n' +
+        `> ✐ Ejemplo » *${usedPrefix + command} circle*\n` +
+        `> ✐ Lista » *${usedPrefix + command} list*`
+    }, { quoted: m })
+  }
+
   if (opt === 'list') {
     return await conn.sendMessage(from, { text: listText }, { quoted: m })
   }
@@ -67,7 +78,7 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
 
   await fs.promises.writeFile(input, buffer)
 
-  // ✅ ÚNICO CAMBIO AQUÍ (transparent → white@0.0)
+  // ✅ ÚNICO FIX REAL (no se toca nada más)
   const baseContain =
     'fps=15,' +
     'scale=512:512:force_original_aspect_ratio=decrease,' +
