@@ -1,99 +1,132 @@
 import axios from 'axios'
 const {
+  proto,
   generateWAMessageFromContent,
   prepareWAMessageMedia
 } = (await import("@whiskeysockets/baileys")).default
 
 const handler = async (m, { conn }) => {
   try {
-    const subs = [
-      'SpanishMemes',
-      'MemesESP',
-      'MemesEnEspanol',
-      'MexicoMemes'
-    ]
+    // ✅ API de memes en español
+    const res = await axios.get('https://meme-api.com/gimme/SpanishMemes')
+    const memeUrl = res.data?.url
 
-    let data
-    let intentos = 0
-
-    // 🔁 Reintento seguro (máx 5)
-    while (!data && intentos < 5) {
-      intentos++
-      const sub = subs[Math.floor(Math.random() * subs.length)]
-      const res = await axios.get(`https://meme-api.com/gimme/${sub}`)
-
-      if (res.data && !res.data.nsfw && !res.data.spoiler) {
-        data = res.data
-      }
+    if (!memeUrl) {
+      return conn.sendMessage(
+        m.chat,
+        { text: '🌾 No se pudo obtener un meme en español.' },
+        { quoted: m }
+      )
     }
 
-    if (!data || !data.url) {
-      return conn.sendMessage(m.chat, { text: '🌾 No encontré memes válidos.' }, { quoted: m })
-    }
-
-    const memeUrl = data.url
-
-    const media = await prepareWAMessageMedia(
+    const mediaMessage = await prepareWAMessageMedia(
       { image: { url: memeUrl } },
       { upload: conn.waUploadToServer }
     )
 
-    const msg = generateWAMessageFromContent(
+    const fkontak = {
+      key: {
+        participants: "0@s.whatsapp.net",
+        remoteJid: "status@broadcast",
+        fromMe: false,
+        id: "Halo"
+      },
+      message: {
+        contactMessage: {
+          vcard: `BEGIN:VCARD
+VERSION:3.0
+N:Sy;Bot;;;
+FN:${m.pushName}
+item1.TEL;waid=${m.sender.split('@')[0]}:${m.sender.split('@')[0]}
+item1.X-ABLabel:Ponsel
+END:VCARD`
+        }
+      },
+      participant: "0@s.whatsapp.net"
+    }
+
+    const interactiveMsg = generateWAMessageFromContent(
       m.chat,
       {
         viewOnceMessage: {
           message: {
+            messageContextInfo: {
+              deviceListMetadata: {},
+              deviceListMetadataVersion: 2
+            },
             interactiveMessage: {
-              header: {
-                title: '😹 Meme en Español',
-                hasMediaAttachment: true,
-                imageMessage: media.imageMessage
-              },
               body: {
-                text: 'Aquí tienes tu meme random 🔥'
+                text: "> ✿ Aquí tienes tu *meme en español* 😹"
               },
               footer: {
-                text: 'YUMI CLUB'
+                text: "☃️ Meme Random"
+              },
+              header: {
+                title: "➭ Meme Español",
+                hasMediaAttachment: true,
+                imageMessage: mediaMessage.imageMessage
               },
               nativeFlowMessage: {
                 buttons: [
                   {
-                    name: 'quick_reply',
+                    name: "cta_url",
                     buttonParamsJson: JSON.stringify({
-                      display_text: '😂 Otro meme',
-                      id: '.meme'
+                      display_text: "✐ Abrir Imagen",
+                      url: memeUrl,
+                      merchant_url: memeUrl
                     })
                   },
                   {
-                    name: 'cta_url',
+                    name: "cta_copy",
                     buttonParamsJson: JSON.stringify({
-                      display_text: '🖼️ Ver imagen',
-                      url: memeUrl
+                      display_text: "⊹ Copiar Enlace",
+                      id: "copy_meme",
+                      copy_code: memeUrl
+                    })
+                  },
+                  {
+                    name: "quick_reply",
+                    buttonParamsJson: JSON.stringify({
+                      display_text: "Otro 😂",
+                      id: ".meme"
                     })
                   }
                 ]
+              },
+              contextInfo: {
+                mentionedJid: [m.sender],
+                forwardingScore: 999,
+                isForwarded: true,
+                externalAdReply: {
+                  title: "🌾 Zona de Memes",
+                  body: "Memes 100% en español",
+                  thumbnailUrl: memeUrl,
+                  sourceUrl: memeUrl,
+                  mediaType: 1,
+                  renderLargerThumbnail: true
+                }
               }
             }
           }
         }
       },
-      { quoted: m }
+      { quoted: fkontak }
     )
 
-    await conn.relayMessage(m.chat, msg.message, {})
+    await conn.relayMessage(m.chat, interactiveMsg.message, {})
 
-  } catch (err) {
-    console.error('❌ MEME ERROR:', err)
+  } catch (e) {
+    console.error(e)
     await conn.sendMessage(
       m.chat,
-      { text: '❌ Error técnico al generar el meme.' },
+      { text: '❌ Error al obtener el meme.' },
       { quoted: m }
     )
   }
 }
 
-handler.command = ['meme', 'memes']
+handler.command = ['meme']
 handler.help = ['meme']
 handler.tags = ['fun']
 
-export default handlerexport default handler
+export default handler
