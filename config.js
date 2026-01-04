@@ -1,7 +1,7 @@
 const config = {
   nombrebot: 'Y͟u͟m͟ï̵̬͟͜𝐁o̸t̸',
   moneda: '$ᴅᴏʟᴀʀᴇs',
-  apikey: 'YumiBot_API_x92A', // Pon tu apikey aqui, consiguela en: https://api-adonix.ultraplus.click
+  apikey: 'AdonixKey08xp3q3055', // Pon tu apikey aqui, consiguela en: https://api-adonix.ultraplus.click
   prefijo: '.',
 
   owner: [
