@@ -160,42 +160,21 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     else await conn.sendMessage(chatId, { text: caption }, { quoted: m })
   } catch {}
 
-  const apiKey = globalThis?.apikey
-  if (!apiKey) {
-    await conn.sendMessage(chatId, { text: `「✦」Falta configurar globalThis.apikey para usar la API.` }, { quoted: m })
-    return
-  }
-
-  let apiResp = null
   try {
     const apiUrl =
-      `https://api-adonix.ultraplus.click/download/ytaudio` +
-      `?apikey=${encodeURIComponent(String(apiKey))}` +
+      `https://optishield.uk/api/?type=youtubedl` +
+      `&apikey=YumiBot0` +
       `&url=${encodeURIComponent(String(ytUrl))}`
 
-    apiResp = await fetchJson(apiUrl, HTTP_TIMEOUT_MS)
-  } catch (e) {
-    await conn.sendMessage(
-      chatId,
-      { text: `「✦」Error usando la API.\n\n> 🧩 Error:\n\`\`\`\n${formatErr(e)}\n\`\`\`` },
-      { quoted: m }
-    )
-    return
-  }
+    const apiResp = await fetchJson(apiUrl, HTTP_TIMEOUT_MS)
 
-  if (!apiResp?.status || !apiResp?.data?.url) {
-    await conn.sendMessage(
-      chatId,
-      { text: `「✦」La API no devolvió un link válido.\n\n> Respuesta:\n\`\`\`\n${String(JSON.stringify(apiResp, null, 2)).slice(0, 1500)}\n\`\`\`` },
-      { quoted: m }
-    )
-    return
-  }
+    if (!apiResp?.status || !apiResp?.result?.url) {
+      throw new Error('La API no devolvió un link válido')
+    }
 
-  const directUrl = String(apiResp.data.url)
-  const apiTitle = apiResp?.data?.title || title
+    const directUrl = String(apiResp.result.url)
+    const apiTitle = apiResp.result.title || title
 
-  try {
     const audioBuffer = await fetchBuffer(directUrl, HTTP_TIMEOUT_MS)
     const mime = guessMimeFromUrl(directUrl)
 
