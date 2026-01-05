@@ -45,7 +45,7 @@ app.use((req, res) => {
 })
 
 function startWebPanel() {
-  const port = Number(process.env.WEB_PORT || 25407)
+  const port = Number(process.env.WEB_PORT || 8443)
   const host = process.env.WEB_HOST || '0.0.0.0'
 
   app.listen(port, host, () => {
