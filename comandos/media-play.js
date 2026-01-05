@@ -162,9 +162,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 
   try {
     const apiUrl =
-      `https://optishield.uk/api/?type=youtubedl` +
-      `&apikey=YumiBot0` +
-      `&url=${encodeURIComponent(String(ytUrl))}`
+      `https://optishield.uk/api/?type=youtubedl&apikey=YumiBot0&url=audio${encodeURIComponent(String(ytUrl))}`
 
     const apiResp = await fetchJson(apiUrl, HTTP_TIMEOUT_MS)
 
