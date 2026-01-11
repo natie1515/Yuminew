@@ -1,226 +1,95 @@
+import fetch from "node-fetch"
 import yts from 'yt-search'
 
-const MAX_SECONDS = 90 * 60
-const HTTP_TIMEOUT_MS = 90 * 1000
+const handler = async (m, { conn, text, usedPrefix, command }) => {
+try {
+if (!text.trim()) return conn.reply(m.chat, `🌱 Por favor, ingresa el nombre de la música a descargar.`, m)
+await m.react('🕒')
+const videoMatch = text.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/|v\/))([a-zA-Z0-9_-]{11})/)
+const query = videoMatch ? 'https://youtu.be/' + videoMatch[1] : text
+const search = await yts(query)
+const result = videoMatch ? search.videos.find(v => v.videoId === videoMatch[1]) || search.all[0] : search.all[0]
+if (!result) throw 'ꕥ No se encontraron resultados.'
+const { title, thumbnail, timestamp, views, ago, url, author, seconds } = result
+if (seconds > 3600) throw '⚠ El contenido supera el límite de duración (1 hora).'
+const vistas = formatViews(views)
+const info = `✿ ׄㅤ🪷̸ㅤ𝐘𝐨𝐮𝐓𝐮𝐛𝐞 - 𝐃𝐨𝐰𝐧𝐥𝐨𝐚𝐝𝐬 ˒˓  𓏸̶  ׄ  ✿
 
-function parseDurationToSeconds(d) {
-  if (d == null) return null
-  if (typeof d === 'number' && Number.isFinite(d)) return Math.max(0, Math.floor(d))
-  const s = String(d).trim()
-  if (!s) return null
-  if (/^\d+$/.test(s)) return Math.max(0, parseInt(s, 10))
-  const parts = s.split(':').map((x) => x.trim()).filter(Boolean)
-  if (!parts.length || parts.some((p) => !/^\d+$/.test(p))) return null
-  let sec = 0
-  for (const p of parts) sec = sec * 60 + parseInt(p, 10)
-  return Number.isFinite(sec) ? sec : null
-}
+> *ര ׄ 🎵 ׅ Título :*  ${title}
+> *ര ׄ 👤 ׅ Canal :* ${author.name}
+> *ര ׄ 👁️ ׅ Vistas :* ${vistas}
+> *ര ׄ ⏱️ ׅ Duración :* ${timestamp}
+> *ര ׄ 📅 ׅ Publicado :* ${ago}
+> *ര ׄ 🔗 ׅ Link :* ${url}
 
-function formatErr(err, maxLen = 1500) {
-  const e = err ?? 'Error desconocido'
-  let msg = ''
+> * ݁ ✎՞ ᴇɴᴠɪᴀɴᴅᴏ sᴜ ᴀʀᴄʜɪᴠᴏ, ᴇsᴘᴇʀᴇ ᴜɴ ᴍᴏᴍᴇɴᴛᴏ.`
+const thumb = (await conn.getFile(thumbnail)).data
+await conn.sendMessage(m.chat, { image: thumb, caption: info }, { quoted: m })
+if (['play', 'mp3'].includes(command)) {
+const audio = await getAud(url)
+if (!audio?.url) throw '⚠ No se pudo obtener el audio.'
+m.reply(`> ➪ *Audio procesado. Servidor:* \`${audio.api}\``)
+await conn.sendMessage(m.chat, { audio: { url: audio.url }, fileName: `${title}.mp3`, mimetype: 'audio/mpeg' }, { quoted: m })
+await m.react('✔️')
+} else if (['play2', 'mp4'].includes(command)) {
+const video = await getVid(url)
+if (!video?.url) throw '⚠ No se pudo obtener el video.'
+m.reply(`> ✍︎ *Vídeo procesado. Servidor:* \`${video.api}\``)
+await conn.sendFile(m.chat, video.url, `${title}.mp4`, `> ❀ ${title}`, m)
+await m.react('✔️')
+}} catch (e) {
+await m.react('✖️')
+return conn.reply(m.chat, typeof e === 'string' ? e : '⚠︎ Se ha producido un problema.\n> Usa *' + usedPrefix + 'report* para informarlo.\n\n' + e.message, m)
+}}
 
-  if (e instanceof Error) msg = e.stack || `${e.name}: ${e.message}`
-  else if (typeof e === 'string') msg = e
-  else {
-    try {
-      msg = JSON.stringify(e, null, 2)
-    } catch {
-      msg = String(e)
-    }
-  }
-
-  msg = String(msg || 'Error desconocido').trim()
-  if (msg.length > maxLen) msg = msg.slice(0, maxLen) + '\n... (recortado)'
-  return msg
-}
-
-async function fetchJson(url, timeoutMs = HTTP_TIMEOUT_MS) {
-  const ctrl = new AbortController()
-  const t = setTimeout(() => ctrl.abort(), timeoutMs)
-  try {
-    const res = await fetch(url, {
-      method: 'GET',
-      signal: ctrl.signal,
-      headers: { accept: 'application/json', 'user-agent': 'Mozilla/5.0' }
-    })
-    const text = await res.text().catch(() => '')
-    let data = null
-    try {
-      data = text ? JSON.parse(text) : null
-    } catch {
-      data = null
-    }
-    if (!res.ok) {
-      const msg = data?.message || data?.error || text || `HTTP ${res.status}`
-      throw new Error(`HTTP ${res.status}: ${String(msg).slice(0, 400)}`)
-    }
-    if (data == null) throw new Error('Respuesta JSON inválida')
-    return data
-  } finally {
-    clearTimeout(t)
-  }
-}
-
-async function fetchBuffer(url, timeoutMs = HTTP_TIMEOUT_MS) {
-  const ctrl = new AbortController()
-  const t = setTimeout(() => ctrl.abort(), timeoutMs)
-  try {
-    const res = await fetch(url, { signal: ctrl.signal, headers: { 'user-agent': 'Mozilla/5.0' } })
-    if (!res.ok) throw new Error(`No se pudo bajar el audio (HTTP ${res.status})`)
-    const ab = await res.arrayBuffer()
-    return Buffer.from(ab)
-  } finally {
-    clearTimeout(t)
-  }
-}
-
-function guessMimeFromUrl(fileUrl = '') {
-  let ext = ''
-  try {
-    ext = new URL(fileUrl).pathname.split('.').pop() || ''
-  } catch {
-    ext = String(fileUrl).split('.').pop() || ''
-  }
-  ext = '.' + String(ext).toLowerCase().replace(/[^a-z0-9]/g, '')
-  if (ext === '.m4a') return 'audio/mp4'
-  if (ext === '.opus') return 'audio/ogg; codecs=opus'
-  if (ext === '.webm') return 'audio/webm'
-  return 'audio/mpeg'
-}
-
-let handler = async (m, { conn, text, usedPrefix, command }) => {
-  const chatId = m?.chat || m?.key?.remoteJid
-  if (!chatId) return
-
-  if (!text) {
-    return conn.sendMessage(
-      chatId,
-      { text: `「✦」Escribe el nombre o link del video.\n> ✐ Ejemplo » *${usedPrefix + command} lovely*` },
-      { quoted: m }
-    )
-  }
-
-  await conn.sendMessage(chatId, { react: { text: '🕒', key: m.key } }).catch(() => {})
-
-  let ytUrl = text.trim()
-  let ytInfo = null
-
-  try {
-    if (!/youtu\.be|youtube\.com/i.test(ytUrl)) {
-      const search = await yts(ytUrl)
-      const first = search?.videos?.[0]
-      if (!first) {
-        await conn.sendMessage(chatId, { text: '「✦」No se encontraron resultados.' }, { quoted: m })
-        return
-      }
-      ytInfo = first
-      ytUrl = first.url
-    } else {
-      const search = await yts({ query: ytUrl, pages: 1 })
-      if (search?.videos?.length) ytInfo = search.videos[0]
-    }
-  } catch (e) {
-    await conn.sendMessage(
-      chatId,
-      { text: `「✦」Error buscando en YouTube.\n\n> 🧩 Error:\n\`\`\`\n${formatErr(e)}\n\`\`\`` },
-      { quoted: m }
-    )
-    return
-  }
-
-  const durSec =
-    parseDurationToSeconds(ytInfo?.duration?.seconds) ??
-    parseDurationToSeconds(ytInfo?.seconds) ??
-    parseDurationToSeconds(ytInfo?.duration) ??
-    parseDurationToSeconds(ytInfo?.timestamp)
-
-  if (durSec && durSec > MAX_SECONDS) {
-    await conn.sendMessage(
-      chatId,
-      { text: `「✦」Audio muy largo.\n> Máx: ${Math.floor(MAX_SECONDS / 60)} min.` },
-      { quoted: m }
-    )
-    return
-  }
-
-  const title = ytInfo?.title || 'Audio'
-  const author = ytInfo?.author?.name || ytInfo?.author || 'Desconocido'
-  const duration = ytInfo?.timestamp || 'Desconocida'
-  const thumbnail = ytInfo?.thumbnail
-
-  const caption =
-    `「✦」Enviando *${title}*\n\n` +
-    `> ❀ Canal » *${author}*\n` +
-    `> ⴵ Duración » *${duration}*\n` +
-    `> 🜸 Link » ${ytUrl}`
-
-  try {
-    if (thumbnail) await conn.sendMessage(chatId, { image: { url: thumbnail }, caption }, { quoted: m })
-    else await conn.sendMessage(chatId, { text: caption }, { quoted: m })
-  } catch {}
-
-  const apiKey = globalThis?.apikey
-  if (!apiKey) {
-    await conn.sendMessage(chatId, { text: `「✦」Falta configurar globalThis.apikey para usar la API.` }, { quoted: m })
-    return
-  }
-
-  let apiResp = null
-  try {
-    const apiUrl =
-      `https://api-adonix.ultraplus.click/download/ytaudio` +
-      `?apikey=${encodeURIComponent(String(apiKey))}` +
-      `&url=${encodeURIComponent(String(ytUrl))}`
-
-    apiResp = await fetchJson(apiUrl, HTTP_TIMEOUT_MS)
-  } catch (e) {
-    await conn.sendMessage(
-      chatId,
-      { text: `「✦」Error usando la API.\n\n> 🧩 Error:\n\`\`\`\n${formatErr(e)}\n\`\`\`` },
-      { quoted: m }
-    )
-    return
-  }
-
-  if (!apiResp?.status || !apiResp?.data?.url) {
-    await conn.sendMessage(
-      chatId,
-      { text: `「✦」La API no devolvió un link válido.\n\n> Respuesta:\n\`\`\`\n${String(JSON.stringify(apiResp, null, 2)).slice(0, 1500)}\n\`\`\`` },
-      { quoted: m }
-    )
-    return
-  }
-
-  const directUrl = String(apiResp.data.url)
-  const apiTitle = apiResp?.data?.title || title
-
-  try {
-    const audioBuffer = await fetchBuffer(directUrl, HTTP_TIMEOUT_MS)
-    const mime = guessMimeFromUrl(directUrl)
-
-    await conn.sendMessage(
-      chatId,
-      {
-        audio: audioBuffer,
-        mimetype: mime,
-        fileName: `${apiTitle}.mp3`
-      },
-      { quoted: m }
-    )
-
-    await conn.sendMessage(chatId, { react: { text: '✔️', key: m.key } }).catch(() => {})
-  } catch (e) {
-    await conn.sendMessage(
-      chatId,
-      { text: `「✦」Error descargando/enviando el audio.\n\n> 🧩 Error:\n\`\`\`\n${formatErr(e)}\n\`\`\`` },
-      { quoted: m }
-    )
-  }
-}
-
-handler.help = ['play <texto|link>']
+handler.command = handler.help = ['play', 'mp3', 'play2', 'mp4']
 handler.tags = ['multimedia']
-handler.command = ['play']
+handler.group = true
 
 export default handler
+
+async function getAud(url) {
+const apis = [
+{ api: 'Adonix', endpoint: `${global.APIs.adonix.url}/download/ytaudio?apikey=${global.APIs.adonix.key}&url=${encodeURIComponent(url)}`, extractor: res => res.data?.url },
+{ api: 'ZenzzXD', endpoint: `${global.APIs.zenzxz.url}/downloader/ytmp3?url=${encodeURIComponent(url)}`, extractor: res => res.data?.download_url },
+{ api: 'ZenzzXD v2', endpoint: `${global.APIs.zenzxz.url}/downloader/ytmp3v2?url=${encodeURIComponent(url)}`, extractor: res => res.data?.download_url },
+{ api: 'Yupra', endpoint: `${global.APIs.yupra.url}/api/downloader/ytmp3?url=${encodeURIComponent(url)}`, extractor: res => res.result?.link },
+{ api: 'Vreden', endpoint: `${global.APIs.vreden.url}/api/v1/download/youtube/audio?url=${encodeURIComponent(url)}&quality=128`, extractor: res => res.result?.download?.url },
+{ api: 'Vreden v2', endpoint: `${global.APIs.vreden.url}/api/v1/download/play/audio?query=${encodeURIComponent(url)}`, extractor: res => res.result?.download?.url },
+{ api: 'Xyro', endpoint: `${global.APIs.xyro.url}/download/youtubemp3?url=${encodeURIComponent(url)}`, extractor: res => res.result?.download }
+]
+return await fetchFromApis(apis)
+}
+async function getVid(url) {
+const apis = [
+{ api: 'Adonix', endpoint: `${global.APIs.adonix.url}/download/ytvideo?apikey=${global.APIs.adonix.key}&url=${encodeURIComponent(url)}`, extractor: res => res.data?.url },
+{ api: 'ZenzzXD', endpoint: `${global.APIs.zenzxz.url}/downloader/ytmp4?url=${encodeURIComponent(url)}&resolution=360p`, extractor: res => res.data?.download_url },
+{ api: 'ZenzzXD v2', endpoint: `${global.APIs.zenzxz.url}/downloader/ytmp4v2?url=${encodeURIComponent(url)}&resolution=360`, extractor: res => res.data?.download_url },
+{ api: 'Yupra', endpoint: `${global.APIs.yupra.url}/api/downloader/ytmp4?url=${encodeURIComponent(url)}`, extractor: res => res.result?.formats?.[0]?.url },
+{ api: 'Vreden', endpoint: `${global.APIs.vreden.url}/api/v1/download/youtube/video?url=${encodeURIComponent(url)}&quality=360`, extractor: res => res.result?.download?.url },
+{ api: 'Vreden v2', endpoint: `${global.APIs.vreden.url}/api/v1/download/play/video?query=${encodeURIComponent(url)}`, extractor: res => res.result?.download?.url },
+{ api: 'Xyro', endpoint: `${global.APIs.xyro.url}/download/youtubemp4?url=${encodeURIComponent(url)}&quality=360`, extractor: res => res.result?.download }
+]
+return await fetchFromApis(apis)
+}
+async function fetchFromApis(apis) {
+for (const { api, endpoint, extractor } of apis) {
+try {
+const controller = new AbortController()
+const timeout = setTimeout(() => controller.abort(), 10000)
+const res = await fetch(endpoint, { signal: controller.signal }).then(r => r.json())
+clearTimeout(timeout)
+const link = extractor(res)
+if (link) return { url: link, api }
+} catch (e) {}
+await new Promise(resolve => setTimeout(resolve, 500))
+}
+return null
+}
+function formatViews(views) {
+if (views === undefined) return "No disponible"
+if (views >= 1_000_000_000) return `${(views / 1_000_000_000).toFixed(1)}B (${views.toLocaleString()})`
+if (views >= 1_000_000) return `${(views / 1_000_000).toFixed(1)}M (${views.toLocaleString()})`
+if (views >= 1_000) return `${(views / 1_000).toFixed(1)}k (${views.toLocaleString()})`
+return views.toString()
+}
